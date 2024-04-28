@@ -1,12 +1,14 @@
 import requests
 
-r = requests.get("https://codeforces.com/api/problemset.problems?tags=trees")
 
-problems = r.json()['result']['problems']
-statistic = r.json()['result']['problemStatistics']
+class Codeforces_API:
+    r = requests.get("https://codeforces.com/api/problemset.problems?tags=trees")
 
-for p in problems:
-    print(p)
+    def get_problems(self):
+        problems = self.r.json()['result']['problems']
+        return problems
 
-for s in statistic:
-    print(s)
+    def get_statistic(self):
+        statistic = self.r.json()['result']['problemStatistics']
+        return statistic
+
