@@ -82,3 +82,72 @@ class Database:
             ))
         self.conn.commit()
         cur.close()
+
+    def create_contests_table(self):
+        cur = self.conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS contests (
+                id SERIAL PRIMARY KEY,
+                task_ids INTEGER[]
+            );
+        """)
+        self.conn.commit()
+        cur.close()
+
+    def select_unique_tasks(self, points, tags):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT id FROM tasks
+            WHERE points = %s AND tags && %s
+            AND id NOT IN (
+                SELECT UNNEST(task_ids) FROM contests
+            )
+            LIMIT 10;
+        """, (points, tags))
+        task_ids = [task[0] for task in cur.fetchall()]
+        cur.close()
+        return task_ids
+
+    def create_contest(self, task_ids):
+        cur = self.conn.cursor()
+        cur.execute("""
+            INSERT INTO contests (task_ids)
+            VALUES (%s)
+            RETURNING id;
+        """, (task_ids,))
+        contest_id = cur.fetchone()[0]
+        self.conn.commit()
+        cur.close()
+        return contest_id
+
+# def get_user_input():
+#     difficulty = float(input("Введите сложность задачи: "))
+#     tags = input("Введите список тем через запятую: ").split(",")
+#     return difficulty, tags
+
+
+# def main():
+#     try:
+#         conn = psycopg2.connect(
+#             dbname=os.getenv("DB_NAME"),
+#             user=os.getenv("DB_USER"),
+#             password=os.getenv("DB_PASSWORD"),
+#             host=os.getenv("DB_HOST"),
+#             port=os.getenv("DB_PORT"),
+#         )
+#
+#         create_contests_table(conn)
+#
+#         difficulty, tags = get_user_input()
+#
+#         task_ids = select_unique_tasks(conn, difficulty, tags)
+#
+#         contest_id = create_contest(conn, task_ids)
+#
+#         print(f"Создан контест с ID: {contest_id} и задачами: {task_ids}")
+#
+#     except Exception as e:
+#         print("Ошибка:", e)
+#     finally:
+#         if conn is not None:
+#             conn.close()
