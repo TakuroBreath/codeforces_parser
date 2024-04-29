@@ -2,9 +2,8 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, Float, ARRAY, func, UniqueConstraint
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.schema import CheckConstraint
-from sqlalchemy.orm import sessionmaker
 
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
