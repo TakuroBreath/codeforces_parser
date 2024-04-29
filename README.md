@@ -30,17 +30,23 @@
 
 Для UNIX систем:
 `Запуск воркера`
+
 ```celery -A tasks worker --loglevel=info```
 
 `Запуск периодической задачи`
+
 ```celery -A tasks beat --loglevel=info```
 
 Для Windows `Redis` необходимо запускать в среде `WSL`, а после запустить celery.
+
 `Запуск воркера`
+
 ```celery -A tasks worker -P eventlet -l info```
 
 `Запуск периодической задачи`
+
 ```celery -A tasks beat --loglevel=info```
 
 Можно запускать программу.
+
 ```python main.py```
