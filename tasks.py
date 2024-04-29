@@ -18,7 +18,7 @@ CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 app = Celery('tasks', broker=CELERY_BROKER_URL, backend=CELERY_BROKER_URL)
 
-schedule = crontab(minute='*/5')
+schedule = crontab(minute=0, hour='*')
 
 
 @app.task
