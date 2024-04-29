@@ -12,16 +12,16 @@
 ### Установка
 
 Для установки требуется выполнить следующую команду:
-```git clone https://github.com/TakuroBreath/codeforces_parser.git```
+ ```git clone https://github.com/TakuroBreath/codeforces_parser.git```
 
 После клонирования репозитория на свое устройство, требуется отредактировать файл .env.sample, заполнив данные по образцу внутри и переименовав в .env
 Таким образом представится возможным подключение к базе данных, боту и брокеру redis.
 
 Установите зависимости:
-```pip install requirements.txt```
+ ```pip install requirements.txt```
 
 Выполните команду для подготовки Базы Данных
-```python preparation.py```
+ ```python preparation.py```
 
 ### Начало работы
 
@@ -29,24 +29,20 @@
 Перед этим необходимо запустить брокер задач Redis. После этого запускаем celery.
 
 Для UNIX систем:
-`Запуск воркера`
+   Запуск воркера
+   ```celery -A tasks worker --loglevel=info```
 
-```celery -A tasks worker --loglevel=info```
-
-`Запуск периодической задачи`
-
-```celery -A tasks beat --loglevel=info```
+   Запуск периодической задачи
+   ```celery -A tasks beat --loglevel=info```
 
 Для Windows `Redis` необходимо запускать в среде `WSL`, а после запустить celery.
+   Запуск воркера
+   ```celery -A tasks worker -P eventlet -l info```
 
-`Запуск воркера`
+   Запуск периодической задачи
+   ```celery -A tasks beat --loglevel=info```
 
-```celery -A tasks worker -P eventlet -l info```
 
-`Запуск периодической задачи`
-
-```celery -A tasks beat --loglevel=info```
 
 Можно запускать программу.
-
-```python main.py```
+   ```python main.py```
