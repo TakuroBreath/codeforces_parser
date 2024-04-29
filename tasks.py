@@ -1,12 +1,10 @@
-from datetime import datetime
-
 from celery import Celery
 from celery.schedules import crontab
 import os
 from dotenv import load_dotenv
 
-from api_work import CodeforcesAPI  # Подключите модуль для работы с API
-from db_work import Database  # Подключите модуль для работы с базой данных
+from api_work import CodeforcesAPI
+from db_work import Database
 
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
