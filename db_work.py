@@ -17,7 +17,6 @@ class Database:
     )
 
     def create_table(self):
-        # Создание таблицы tasks
         cur = self.conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
