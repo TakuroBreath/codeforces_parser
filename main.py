@@ -9,16 +9,20 @@ from db_work import Database
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
 
+# Апи токен для бота телеграм
 API_TOKEN = os.getenv('API_TOKEN')
 
+# Уровень логирования при запуске
 logging.basicConfig(level=logging.INFO)
 
+# Создание экземпляра бота и диспетчера для обработки
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
+# База данных
 db = Database()
 
-
+# Функция для обработки команды /start
 @dp.message(Command("start"))
 async def start(message: types.Message):
     msg = """
@@ -37,6 +41,7 @@ async def start(message: types.Message):
     await message.answer(msg)
 
 
+# Функция для обработки команды /search
 @dp.message(Command("search"))
 async def search(message: types.Message):
     text = message.text
@@ -62,6 +67,7 @@ async def search(message: types.Message):
     await message.answer(msg)
 
 
+# Обработчик для всех сообщений
 @dp.message()
 async def process_contest(message: types.Message):
     try:
@@ -98,9 +104,11 @@ async def process_contest(message: types.Message):
         await message.answer(f"Кажется, что-то пошло не так. \n Вот причина: {e}")
 
 
+# Запуск опроса
 async def main():
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
+    # Асинхронный запуск опрашивающей функции
     asyncio.run(main())

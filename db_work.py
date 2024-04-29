@@ -8,6 +8,7 @@ load_dotenv(dotenv_path=env_path)
 
 
 class Database:
+    """Класс базы данных"""
     conn = psycopg2.connect(
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
@@ -17,6 +18,7 @@ class Database:
     )
 
     def create_table(self):
+        """Создание таблицы с заданиями"""
         cur = self.conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
@@ -42,6 +44,7 @@ class Database:
         cur.close()
 
     def insert_problems(self, problems):
+        """Заполнение таблицы с заданиями"""
         cur = self.conn.cursor()
         for problem in problems:
             cur.execute("""
@@ -69,6 +72,7 @@ class Database:
         cur.close()
 
     def update_solved_count(self, problem_statistic):
+        """Добавление в таблицу количество решений для задач"""
         cur = self.conn.cursor()
         for problem_stat in problem_statistic:
             cur.execute("""
@@ -84,6 +88,7 @@ class Database:
         cur.close()
 
     def create_contests_table(self):
+        """Создание таблицы с контестами"""
         cur = self.conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS contests (
@@ -95,6 +100,7 @@ class Database:
         cur.close()
 
     def select_unique_tasks(self, points, tags):
+        """Функция для выбора уникальных заданий"""
         cur = self.conn.cursor()
         cur.execute("""
             SELECT id FROM tasks
@@ -109,6 +115,7 @@ class Database:
         return task_ids
 
     def create_contest(self, task_ids):
+        """Создание контеста"""
         cur = self.conn.cursor()
         cur.execute("""
             INSERT INTO contests (task_ids)
@@ -121,6 +128,7 @@ class Database:
         return contest_id
 
     def fetch_tasks_by_ids(self, task_ids):
+        """Выборка заданий по их номеру"""
         cur = self.conn.cursor()
 
         query = sql.SQL("""
@@ -140,6 +148,7 @@ class Database:
         return tasks
 
     def find_task_by_contest_id_and_index(self, contest_id, index):
+        """Поиск задания по номеру и индексу"""
         cur = self.conn.cursor()
 
         query = sql.SQL("""
@@ -162,6 +171,7 @@ class Database:
 
 
 def format_task(task):
+    """Форматирование списка в словарь"""
     task_dict = {
         'id': task[0],
         'contestId': task[1],

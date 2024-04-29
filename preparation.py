@@ -1,6 +1,10 @@
 from db_work import Database
 
+# Подключение к БД
 db = Database()
-db.create_table()
-db.create_contests_table()
 
+# Создание таблицы с заданиями
+db.create_table()
+
+# Создание таблицы с контестами
+db.create_contests_table()
