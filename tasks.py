@@ -18,28 +18,23 @@ CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 app = Celery('tasks', broker=CELERY_BROKER_URL, backend=CELERY_BROKER_URL)
 
-# Определяем периодическое расписание (например, каждый час)
-schedule = crontab()
+schedule = crontab(minute='*/5')
 
 
-# Определяем периодическую задачу
-@app.task()
-def fetch_and_fill_database():
+@app.task
+def fetch_database():
     cf = CodeforcesAPI()
     db = Database()
-    # Выполняем запрос к API
     problems = cf.get_problems()
     statistics = cf.get_statistic()
 
-    # Заполняем базу данных
     db.insert_problems(problems)
     db.update_solved_count(statistics)
 
 
-# Указываем задачу в настройках beat_schedule для Celery Beat
 app.conf.beat_schedule = {
     'fetch_db': {
-        'task': 'tasks.fetch_and_fill_database',
-        'schedule': 60,
+        'task': 'tasks.fetch_database',
+        'schedule': schedule,
     },
 }
