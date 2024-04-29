@@ -1,6 +1,7 @@
 import psycopg2
 import os
 from dotenv import load_dotenv
+from psycopg2 import sql
 
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
@@ -120,34 +121,59 @@ class Database:
         cur.close()
         return contest_id
 
-# def get_user_input():
-#     difficulty = float(input("Введите сложность задачи: "))
-#     tags = input("Введите список тем через запятую: ").split(",")
-#     return difficulty, tags
+    def fetch_tasks_by_ids(self, task_ids):
+        cur = self.conn.cursor()
+
+        query = sql.SQL("""
+            SELECT * FROM tasks
+            WHERE id IN %s
+        """)
+
+        cur.execute(query, (tuple(task_ids),))
+
+        tasks = []
+        for row in cur.fetchall():
+            task = format_task(row)
+            tasks.append(task)
+
+        cur.close()
+
+        return tasks
+
+    def find_task_by_contest_id_and_index(self, contest_id, index):
+        cur = self.conn.cursor()
+
+        query = sql.SQL("""
+            SELECT * FROM tasks
+            WHERE contestId = %s AND index = %s
+        """)
+
+        cur.execute(query, (contest_id, index))
+
+        task = cur.fetchone()
+
+        cur.close()
+
+        if task is None:
+            return None
+
+        task_dict = format_task(task)
+
+        return task_dict
 
 
-# def main():
-#     try:
-#         conn = psycopg2.connect(
-#             dbname=os.getenv("DB_NAME"),
-#             user=os.getenv("DB_USER"),
-#             password=os.getenv("DB_PASSWORD"),
-#             host=os.getenv("DB_HOST"),
-#             port=os.getenv("DB_PORT"),
-#         )
-#
-#         create_contests_table(conn)
-#
-#         difficulty, tags = get_user_input()
-#
-#         task_ids = select_unique_tasks(conn, difficulty, tags)
-#
-#         contest_id = create_contest(conn, task_ids)
-#
-#         print(f"Создан контест с ID: {contest_id} и задачами: {task_ids}")
-#
-#     except Exception as e:
-#         print("Ошибка:", e)
-#     finally:
-#         if conn is not None:
-#             conn.close()
+def format_task(task):
+    task_dict = {
+        'id': task[0],
+        'contestId': task[1],
+        'problemsetName': task[2],
+        'index': task[3],
+        'name': task[4],
+        'task_type': task[5],
+        'points': task[6],
+        'rating': task[7],
+        'tags': task[8],
+        'solvedCount': task[9]
+    }
+
+    return task_dict

@@ -1,96 +1,105 @@
-import psycopg2
-
-from db_work import Database
-from api_work import CodeforcesAPI
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters.command import Command
 import os
 from dotenv import load_dotenv
+from db_work import Database
 
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
 
+API_TOKEN = os.getenv('API_TOKEN')
 
-# db = Database()
-# cf = CodeforcesAPI()
-# db.create_table()
-# db.insert_problems(cf.get_problems())
-# db.update_solved_count(cf.get_statistic())
+logging.basicConfig(level=logging.INFO)
 
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
 
-
-
-def create_contests_table(conn):
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS contests (
-            id SERIAL PRIMARY KEY,
-            task_ids INTEGER[]
-        );
-    """)
-    conn.commit()
-    cur.close()
+db = Database()
 
 
-def get_user_input():
-    difficulty = float(input("Введите сложность задачи: "))
-    tags = input("Введите список тем через запятую: ").split(",")
-    return difficulty, tags
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    msg = """
+    Приветствую тебя в боте, предназначенном для получения и поиска задач с Codeforces!
+    
+    Для повторного получения информации введи "/start"
+    Для поиска задачи воспользуйся конструкцией "/search contestId index", 
+    где contestId - номер соревнования, index - индекс задачи в контесте
+    
+    Для получения персонализированного контеста из 10 задач, отправь в чат сообщение в формате:
+    "theme1,theme2,points"
+    Можешь искать несколько тем сразу, а можешь лищь одну.
+    В качестве количества очков используй целое число от 250 до 6000 с шагом 250 (250, 500, 750, 1000, etc)
+    """
+    await message.answer(msg)
 
 
-def select_unique_tasks(conn, difficulty, tags):
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id FROM tasks
-        WHERE points = %s AND tags && %s
-        AND id NOT IN (
-            SELECT UNNEST(task_ids) FROM contests
-        )
-        LIMIT 10;
-    """, (difficulty, tags))
-    task_ids = [task[0] for task in cur.fetchall()]
-    cur.close()
-    return task_ids
-
-
-def create_contest(conn, task_ids):
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO contests (task_ids)
-        VALUES (%s)
-        RETURNING id;
-    """, (task_ids,))
-    contest_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    return contest_id
-
-
-def main():
+@dp.message(Command("search"))
+async def search(message: types.Message):
+    text = message.text
+    msg = ""
     try:
-        conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            host=os.getenv("DB_HOST"),
-            port=os.getenv("DB_PORT"),
-        )
+        contest_id, index = text.replace('/search', '').split()
+        contest_id = int(contest_id)
+        index = index.upper()
+        task = db.find_task_by_contest_id_and_index(contest_id, index)
 
-        create_contests_table(conn)
+        msg = f"""
+                Задача, которую вы искали:
+                
+                Темы: {', '.join(i for i in task['tags'])}
+                Решено раз: {task['solvedCount']}
+                Номер задачи и название: {task['contestId']}{task['index']} {task['name']}
+                Сложность задачи: {task['points']}
+        """
 
-        difficulty, tags = get_user_input()
+    except ValueError:
+        msg = 'Пожалуйста, укажите корректные данные для поиска. Для справки нажми: "/start"'
 
-        task_ids = select_unique_tasks(conn, difficulty, tags)
+    await message.answer(msg)
 
-        contest_id = create_contest(conn, task_ids)
 
-        print(f"Создан контест с ID: {contest_id} и задачами: {task_ids}")
+@dp.message()
+async def process_contest(message: types.Message):
+    try:
+        text = message.text
+        if text.startswith('/start'):
+            return await start(message)
+        if text.startswith('/search'):
+            return await search(message)
+
+        tags = text.split(",")
+        points = int(tags.pop())
+
+        unique_tasks = db.select_unique_tasks(points, tags)
+
+        db.create_contest(unique_tasks)
+        tasks = db.fetch_tasks_by_ids(unique_tasks)
+
+        msg = ""
+        counter = 0
+        for task in tasks:
+            counter += 1
+            msg = f"""
+            Задача из подборки №{counter}
+            
+            Темы: {', '.join(i for i in task['tags'])}
+            Решено раз: {task['solvedCount']}
+            Номер задачи и название: {task['contestId']}{task['index']} {task['name']}
+            Сложность задачи: {task['points']}
+            """
+
+            await message.answer(msg)
 
     except Exception as e:
-        print("Ошибка:", e)
-    finally:
-        if conn is not None:
-            conn.close()
+        await message.answer(f"Кажется, что-то пошло не так. \n Вот причина: {e}")
+
+
+async def main():
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    main()
-
+    asyncio.run(main())
