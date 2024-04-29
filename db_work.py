@@ -49,7 +49,7 @@ class Database:
         Session = sessionmaker(bind=engine)
         self.session = Session()
 
-    def create_tables(self):
+    def create_table(self):
         """Создание таблиц"""
         Base.metadata.create_all(engine)
 
