@@ -1,177 +1,127 @@
-import psycopg2
 import os
 from dotenv import load_dotenv
-from psycopg2 import sql
+from sqlalchemy import create_engine, Column, Integer, String, Float, ARRAY, func, UniqueConstraint
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.schema import CheckConstraint
+from sqlalchemy.orm import sessionmaker
 
 env_path = '.env'
 load_dotenv(dotenv_path=env_path)
 
+engine = create_engine(os.getenv("DATABASE_URL"))
+Base = declarative_base()
+
+
+class Task(Base):
+    """Модель таблицы заданий"""
+    __tablename__ = 'tasks'
+
+    id = Column(Integer, primary_key=True)
+    contestId = Column(Integer)
+    problemsetName = Column(String)
+    index = Column(String)
+    name = Column(String)
+    task_type = Column(String, CheckConstraint("task_type IN ('PROGRAMMING', 'QUESTION')"))
+    points = Column(Float)
+    rating = Column(Integer)
+    tags = Column(ARRAY(String))
+    solvedCount = Column(Integer)
+
+    __table_args__ = (
+        UniqueConstraint('contestId', 'index'),
+    )
+
+
+class Contest(Base):
+    """Модель таблицы контестов"""
+    __tablename__ = 'contests'
+
+    id = Column(Integer, primary_key=True)
+    task_ids = Column(ARRAY(Integer))
+
 
 class Database:
     """Класс базы данных"""
-    conn = psycopg2.connect(
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
-    )
 
-    def create_table(self):
-        """Создание таблицы с заданиями"""
-        cur = self.conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id SERIAL PRIMARY KEY,
-                contestId INTEGER,
-                problemsetName TEXT,
-                index TEXT,
-                name TEXT,
-                task_type TEXT CHECK (task_type IN ('PROGRAMMING', 'QUESTION')),
-                points FLOAT,
-                rating INTEGER,
-                tags TEXT[],
-                solvedCount INTEGER
-            )
-        """)
+    def __init__(self):
+        engine = create_engine(os.getenv("DATABASE_URL"))
+        Session = sessionmaker(bind=engine)
+        self.session = Session()
 
-        try:
-            cur.execute("CREATE UNIQUE INDEX idx_unique_contestid_index ON tasks (contestid, index);")
-        except Exception as e:
-            print(e)
-
-        self.conn.commit()
-        cur.close()
+    def create_tables(self):
+        """Создание таблиц"""
+        Base.metadata.create_all(engine)
 
     def insert_problems(self, problems):
         """Заполнение таблицы с заданиями"""
-        cur = self.conn.cursor()
+        tasks = []
         for problem in problems:
-            cur.execute("""
-                        INSERT INTO tasks (contestId, problemsetname, index, name, task_type, points, rating, tags)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (contestid, index) DO UPDATE
-                        SET 
-                            problemsetname = excluded.problemsetname,
-                            name = excluded.name,
-                            task_type = excluded.task_type,
-                            points = excluded.points,
-                            rating = excluded.rating,
-                            tags = excluded.tags
-                    """, (
-                problem.get('contestId'),
-                problem.get('problemsetName'),
-                problem.get('index'),
-                problem.get('name'),
-                problem.get('type'),
-                problem.get('points'),
-                problem.get('rating'),
-                problem.get('tags')
-            ))
-        self.conn.commit()
-        cur.close()
+            task = Task(
+                contestId=problem.get('contestId'),
+                problemsetName=problem.get('problemsetName'),
+                index=problem.get('index'),
+                name=problem.get('name'),
+                task_type=problem.get('type'),
+                points=problem.get('points'),
+                rating=problem.get('rating'),
+                tags=problem.get('tags')
+            )
+            tasks.append(task)
+
+        try:
+            self.session.bulk_save_objects(tasks)
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+
+        self.session.close()
 
     def update_solved_count(self, problem_statistic):
         """Добавление в таблицу количество решений для задач"""
-        cur = self.conn.cursor()
-        for problem_stat in problem_statistic:
-            cur.execute("""
-                UPDATE tasks
-                SET solvedCount = %s
-                WHERE contestId = %s AND index = %s
-            """, (
-                problem_stat.get('solvedCount'),
-                problem_stat.get('contestId'),
-                problem_stat.get('index')
-            ))
-        self.conn.commit()
-        cur.close()
+        for stat in problem_statistic:
+            self.session.query(Task).filter_by(contestId=stat['contestId'], index=stat['index']).update(
+                {'solvedCount': stat['solvedCount']}
+            )
+        self.session.commit()
 
     def create_contests_table(self):
         """Создание таблицы с контестами"""
-        cur = self.conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS contests (
-                id SERIAL PRIMARY KEY,
-                task_ids INTEGER[]
-            );
-        """)
-        self.conn.commit()
-        cur.close()
+        Base.metadata.create_all(engine)
 
     def select_unique_tasks(self, points, tags):
         """Функция для выбора уникальных заданий"""
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT id FROM tasks
-            WHERE points = %s AND tags && %s
-            AND id NOT IN (
-                SELECT UNNEST(task_ids) FROM contests
-            )
-            LIMIT 10;
-        """, (points, tags))
-        task_ids = [task[0] for task in cur.fetchall()]
-        cur.close()
+        subquery = self.session.query(func.unnest(Contest.task_ids)).subquery()
+
+        task_ids = self.session.query(Task.id). \
+            filter(Task.points == points). \
+            filter(func.array_to_string(Task.tags, ',').like(f'%{",".join(tags)}%')). \
+            filter(~Task.id.in_(subquery)). \
+            limit(10).all()
+
+        task_ids = [task_id for task_id, in task_ids]
+
         return task_ids
 
     def create_contest(self, task_ids):
         """Создание контеста"""
-        cur = self.conn.cursor()
-        cur.execute("""
-            INSERT INTO contests (task_ids)
-            VALUES (%s)
-            RETURNING id;
-        """, (task_ids,))
-        contest_id = cur.fetchone()[0]
-        self.conn.commit()
-        cur.close()
-        return contest_id
+        contest = Contest(task_ids=task_ids)
+        self.session.add(contest)
+        self.session.commit()
+        return contest.id
 
     def fetch_tasks_by_ids(self, task_ids):
         """Выборка заданий по их номеру"""
-        cur = self.conn.cursor()
-
-        query = sql.SQL("""
-            SELECT * FROM tasks
-            WHERE id IN %s
-        """)
-
-        cur.execute(query, (tuple(task_ids),))
-
-        tasks = []
-        for row in cur.fetchall():
-            task = format_task(row)
-            tasks.append(task)
-
-        cur.close()
-
-        return tasks
+        tasks = self.session.query(Task).filter(Task.id.in_(task_ids)).all()
+        return [task.__dict__ for task in tasks]
 
     def find_task_by_contest_id_and_index(self, contest_id, index):
         """Поиск задания по номеру и индексу"""
-        cur = self.conn.cursor()
-
-        query = sql.SQL("""
-            SELECT * FROM tasks
-            WHERE contestId = %s AND index = %s
-        """)
-
-        cur.execute(query, (contest_id, index))
-
-        task = cur.fetchone()
-
-        cur.close()
-
-        if task is None:
-            return None
-
-        task_dict = format_task(task)
-
-        return task_dict
+        task = self.session.query(Task).filter_by(contestId=contest_id, index=index).first()
+        return task.__dict__ if task else None
 
 
 def format_task(task):
-    """Форматирование списка в словарь"""
     task_dict = {
         'id': task[0],
         'contestId': task[1],
